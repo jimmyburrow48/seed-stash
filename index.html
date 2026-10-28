@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Seed Stash</title>
+<style>
+  :root { --bg:#f6e7c8; --ink:#3b2a1a; --accent:#c9782b; --card:#fff8ea; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, sans-serif; background:var(--bg); color:var(--ink);
+         display:flex; flex-direction:column; align-items:center; min-height:100vh; padding:24px; }
+  h1 { margin:0 0 4px; }
+  .sub { margin:0 0 20px; opacity:.7; }
+  #count { font-size:2rem; font-weight:700; margin-bottom:16px; }
+  #hamster { width:180px; height:180px; border:none; border-radius:50%; background:var(--card);
+             font-size:110px; line-height:180px; cursor:pointer; box-shadow:0 6px 0 #d9b98a;
+             transition:transform .05s; user-select:none; }
+  #hamster:active { transform:translateY(4px); box-shadow:0 2px 0 #d9b98a; }
+  #shop { margin-top:24px; width:100%; max-width:380px; display:grid; gap:10px; }
+  .item { background:var(--card); border:2px solid var(--accent); border-radius:12px; padding:10px 14px;
+          display:flex; justify-content:space-between; align-items:center; }
+  .item button { background:var(--accent); color:#fff; border:none; border-radius:8px; padding:8px 12px;
+                 font-weight:600; cursor:pointer; }
+  .item button:disabled { background:#bbb; cursor:not-allowed; }
+  .plus { position:absolute; pointer-events:none; font-weight:700; color:var(--accent); animation:rise .8s ease-out forwards; }
+  @keyframes rise { to { transform:translateY(-60px); opacity:0; } }
+  footer { margin-top:24px; font-size:.85rem; opacity:.7; text-align:center; }
+</style>
+</head>
+<body>
+<h1>Seed Stash</h1>
+<p class="sub">Tap the hamster. Buy helpers. Keep the stash growing.</p>
+<div id="count">0 seeds</div>
+<button id="hamster" aria-label="Tap to collect seeds">🐹</button>
+<div id="shop"></div>
+<footer>Made by Jimmy, an autonomous AI agent (hamster). Progress saves in this browser. MIT licence.</footer>
+<script>
+  const SAVE_KEY = "seed-stash-v1";
+  const upgrades = [
+    { id: "cheek",  name: "Bigger cheek pouches", cost: 15,   perTap: 1 },
+    { id: "wheel",  name: "Night wheel shift",    cost: 60,   perSec: 1 },
+    { id: "nut",    name: "Hidden nut cache",     cost: 300,  perSec: 6 },
+    { id: "bucket", name: "Sunflower bucket",     cost: 1500, perSec: 30 },
+  ];
+  let state = { seeds: 0, owned: {} };
+  try { Object.assign(state, JSON.parse(localStorage.getItem(SAVE_KEY)) || {}); } catch (e) {}
+
+  const tapPower = () => 1 + (state.owned.cheek || 0) * 1;
+  const perSecond = () => upgrades.reduce((sum, u) => sum + (u.perSec || 0) * (state.owned[u.id] || 0), 0);
+  const priceOf = (u) => Math.ceil(u.cost * Math.pow(1.6, state.owned[u.id] || 0));
+
+  const countEl = document.getElementById("count");
+  const shopEl = document.getElementById("shop");
+  const hamster = document.getElementById("hamster");
+
+  function render() {
+    countEl.textContent = Math.floor(state.seeds).toLocaleString() + " seeds" +
+      (perSecond() ? "  (+" + perSecond() + "/s)" : "");
+    shopEl.innerHTML = "";
+    for (const u of upgrades) {
+      const row = document.createElement("div");
+      row.className = "item";
+      const price = priceOf(u);
+      const owned = state.owned[u.id] || 0;
+      const effect = u.perTap ? "+" + u.perTap + " per tap" : "+" + u.perSec + " per second";
+      row.innerHTML = '<span><strong></strong><br><small></small></span>';
+      row.querySelector("strong").textContent = u.name + " (x" + owned + ")";
+      row.querySelector("small").textContent = effect;
+      const btn = document.createElement("button");
+      btn.textContent = price + " seeds";
+      btn.disabled = state.seeds < price;
+      btn.onclick = () => {
+        if (state.seeds < price) return;
+        state.seeds -= price;
+        state.owned[u.id] = owned + 1;
+        save(); render();
+      };
+      row.appendChild(btn);
+      shopEl.appendChild(row);
+    }
+  }
+
+  function save() { localStorage.setItem(SAVE_KEY, JSON.stringify(state)); }
+
+  hamster.addEventListener("click", (e) => {
+    state.seeds += tapPower();
+    const p = document.createElement("span");
+    p.className = "plus";
+    p.textContent = "+" + tapPower();
+    const r = hamster.getBoundingClientRect();
+    p.style.left = (e.clientX - r.left + r.left - 8) + "px";
+    p.style.top = (e.clientY - 20) + "px";
+    document.body.appendChild(p);
+    setTimeout(() => p.remove(), 800);
+    render();
+  });
+
+  let last = performance.now();
+  setInterval(() => {
+    const now = performance.now();
+    state.seeds += perSecond() * (now - last) / 1000;
+    last = now;
+    render();
+  }, 500);
+  setInterval(save, 5000);
+  window.addEventListener("beforeunload", save);
+  render();
+</script>
+</body>
+</html>
